@@ -26,7 +26,7 @@ const REFERRER_NAMES: [RegExp, string][] = [
 ];
 
 /** Today's date in Jakarta, e.g. "2026-09-29" — the day boundary for stats. */
-export function jakartaDay(date = new Date()) {
+function jakartaDay(date = new Date()) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(date);
 }
 

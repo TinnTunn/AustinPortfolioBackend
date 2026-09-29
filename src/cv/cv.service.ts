@@ -7,7 +7,7 @@ const BUCKET = "cv";
 const OBJECT = "Austin_Yang_CV.pdf";
 const CACHE_MS = 5 * 60_000;
 
-export interface CvInfo {
+interface CvInfo {
   size: number;
   updatedAt: string | null;
 }

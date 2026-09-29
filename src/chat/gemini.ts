@@ -24,7 +24,7 @@ const DEADLINE_MS = 25_000;
 
 const logger = new Logger("Gemini");
 
-export interface OpenStream {
+interface OpenStream {
   reader: ReadableStreamDefaultReader<Uint8Array>;
   decoder: TextDecoder;
   buffer: string;

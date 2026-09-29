@@ -1,7 +1,7 @@
 import { Global, Injectable, Logger, Module } from "@nestjs/common";
 import { env } from "../config/env";
 
-export type FrontendCacheTag = "content" | "cv";
+type FrontendCacheTag = "content" | "cv";
 
 /**
  * Tells the Next.js frontend to drop a cached resource right away (its

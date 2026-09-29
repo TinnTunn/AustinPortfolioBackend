@@ -1,6 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { createClient } from "@supabase/supabase-js";
-import { SupabaseService } from "../supabase/supabase.service";
+import { createServiceClient, SupabaseService } from "../supabase/supabase.service";
 import { env } from "../config/env";
 import { hmacHex } from "../common/security";
 
@@ -8,7 +7,7 @@ const WINDOW_MINUTES = 15;
 const MAX_FAILURES_PER_IP = 5;
 const MAX_FAILURES_TOTAL = 30; // across all IPs — caps distributed guessing
 
-export type LoginResult =
+type LoginResult =
   | { ok: true; user: { id: string; email: string } }
   | { ok: false; reason: "unconfigured" | "unavailable" | "locked" | "invalid" };
 
@@ -73,7 +72,7 @@ export class AdminAuthService {
 
     // Throwaway client: the Supabase session it gets is revoked right away —
     // the admin panel runs on its own short-lived signed cookie instead.
-    const client = createClient(supabaseUrl!, supabaseServiceKey!, { auth: { persistSession: false, autoRefreshToken: false } });
+    const client = createServiceClient(supabaseUrl!, supabaseServiceKey!);
     const { data, error } = await client.auth.signInWithPassword({ email, password });
     if (error || !data.user?.email || data.user.email.toLowerCase() !== adminEmail) return null;
 

@@ -27,7 +27,7 @@ function list(name: string) {
     .filter(Boolean);
 }
 
-export function loadEnv() {
+function loadEnv() {
   return {
     isProduction: process.env.NODE_ENV === "production",
     port: Number(process.env.PORT) || 4000,
@@ -44,7 +44,7 @@ export function loadEnv() {
   };
 }
 
-export type Env = ReturnType<typeof loadEnv>;
+type Env = ReturnType<typeof loadEnv>;
 
 let cached: Env | null = null;
 

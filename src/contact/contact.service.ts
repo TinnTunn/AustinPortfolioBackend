@@ -9,7 +9,7 @@ interface ContactMessage {
   message: string;
 }
 
-export type ContactResult = "sent" | "notConnected" | "failed";
+type ContactResult = "sent" | "notConnected" | "failed";
 
 /**
  * Saves a contact message to Supabase and emails it via Resend in parallel.

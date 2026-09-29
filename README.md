@@ -12,9 +12,13 @@ here, and every secret (Supabase, Resend, Gemini) stays on this server.
 | Visitor stats | `POST /visits` (frontend server only) · `GET /admin/stats` |
 | Admin auth | `POST /admin/login` · `POST /admin/logout` · `GET /admin/session` |
 | Admin CMS | `GET/POST /admin/{experiences,projects}` · `GET/PUT/DELETE …/:id` · `PATCH …/:id/published` · `POST …/:id/move` |
+| CV | `GET /cv` (public download) · `GET/PUT /admin/cv` (replace the PDF) |
 | Health | `GET /health` |
 
 ## Getting started
+
+Requires **Node.js 22+** (supabase-js needs the built-in WebSocket); the
+version is pinned in `.node-version` and `package.json` → `engines`.
 
 ```bash
 npm install
@@ -54,8 +58,13 @@ reason to let strangers create accounts.
   database is only reached through Supabase's parameterized query builder.
   React renders everything as text on the frontend.
 - **Database**: RLS is on for every table with no policies, so the public anon
-  key can't read or write anything; the stats function is executable by the
-  service role only.
+  key can't read or write anything; the stats and reorder functions are
+  executable by the service role only. Reordering rewrites the whole list in
+  one statement, so it's atomic.
+- **CV uploads**: admin-only, one file, 5 MB max, and the bytes must start with
+  `%PDF-` (the file name and declared type aren't trusted). Stored under a fixed
+  name in a private Storage bucket (`cv`, created automatically on first
+  upload, PDF-only and 5 MB-limited by Storage too).
 - **Headers & limits**: Helmet security headers, a 64 KB body limit, rate
   limits on login, contact, and chat.
 - **Privacy**: visitor stats store no cookies and no raw IPs — only a daily

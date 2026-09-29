@@ -10,7 +10,7 @@ const PING_EVERY_MS = 12 * 60 * 60_000;
  * simply makes one tiny read twice a day.
  */
 @Injectable()
-export class KeepAliveService implements OnApplicationBootstrap, OnApplicationShutdown {
+class KeepAliveService implements OnApplicationBootstrap, OnApplicationShutdown {
   private readonly logger = new Logger(KeepAliveService.name);
   private timer: NodeJS.Timeout | null = null;
 
@@ -35,7 +35,7 @@ export class KeepAliveService implements OnApplicationBootstrap, OnApplicationSh
 
 /** Liveness probe for Railway. Deliberately doesn't touch the database. */
 @Controller("health")
-export class HealthController {
+class HealthController {
   @Get()
   @SkipThrottle()
   check() {

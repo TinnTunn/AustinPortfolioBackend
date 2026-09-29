@@ -20,7 +20,7 @@ import {
 
 const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
 
-export function cleanText(value: unknown, multiline = false) {
+function cleanText(value: unknown, multiline = false) {
   if (typeof value !== "string") return value;
   const text = value.replace(/\r\n?/g, "\n").replace(CONTROL_CHARS, "").trim();
   return multiline ? text : text.replace(/\s*\n\s*/g, " ");
