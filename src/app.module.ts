@@ -11,6 +11,7 @@ import { CvController } from "./cv/cv.controller";
 import { CvService } from "./cv/cv.service";
 import { HealthModule } from "./health/health";
 import { FrontendRevalidatorModule } from "./common/frontend-revalidator";
+import { AdminSessionsModule } from "./admin/admin-sessions.service";
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { FrontendRevalidatorModule } from "./common/frontend-revalidator";
     ThrottlerModule.forRoot([{ name: "default", ttl: 60_000, limit: 120 }]),
     SupabaseModule,
     FrontendRevalidatorModule,
+    AdminSessionsModule,
     ContentModule,
     AdminModule,
     HealthModule,

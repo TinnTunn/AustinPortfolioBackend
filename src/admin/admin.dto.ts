@@ -1,4 +1,5 @@
-import { IsBoolean, IsEmail, IsIn, IsNotEmpty, IsString, MaxLength } from "class-validator";
+import { applyDecorators } from "@nestjs/common";
+import { IsBoolean, IsEmail, IsIn, IsJWT, IsNotEmpty, IsString, MaxLength, MinLength } from "class-validator";
 import { Labels, Lines, Link, Text } from "../common/validation";
 
 export class LoginDto {
@@ -11,6 +12,38 @@ export class LoginDto {
   @IsNotEmpty({ message: "Enter your password." })
   @MaxLength(200)
   password: string;
+}
+
+// New passwords: at least 12 characters; at most 72, the bcrypt limit Supabase
+// hashes with (longer would be silently truncated). Never trimmed.
+const NewPassword = () =>
+  applyDecorators(
+    IsString(),
+    MinLength(12, { message: "Use at least 12 characters." }),
+    MaxLength(72, { message: "Keep it under 72 characters." })
+  );
+
+export class ChangePasswordDto {
+  @IsString()
+  @IsNotEmpty({ message: "Enter your current password." })
+  @MaxLength(200)
+  currentPassword: string;
+
+  @NewPassword() newPassword: string;
+}
+
+export class ForgotPasswordDto {
+  @IsEmail({}, { message: "Enter a valid email." })
+  @MaxLength(200)
+  email: string;
+}
+
+export class ResetPasswordDto {
+  @IsJWT({ message: "This reset link is invalid." })
+  @MaxLength(4096)
+  accessToken: string;
+
+  @NewPassword() newPassword: string;
 }
 
 export class ExperienceDto {

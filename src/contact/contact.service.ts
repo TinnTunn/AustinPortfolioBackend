@@ -2,6 +2,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import { Resend } from "resend";
 import { SupabaseService } from "../supabase/supabase.service";
 import { env } from "../config/env";
+import { RollingLimit } from "../common/rolling-limit";
 
 interface ContactMessage {
   name: string;
@@ -20,6 +21,11 @@ type ContactResult = "sent" | "notConnected" | "failed";
 export class ContactService {
   private readonly logger = new Logger(ContactService.name);
   private readonly resend = env().resendApiKey ? new Resend(env().resendApiKey!) : null;
+  // Across all senders, on top of the per-IP throttle: a spam wave from many
+  // IPs can't flood the inbox or burn the free Resend quota (100/day), and
+  // can't fill the database. Past the email cap, messages are still saved.
+  private readonly emailLimit = new RollingLimit(20, 60 * 60_000);
+  private readonly saveLimit = new RollingLimit(200, 60 * 60_000);
 
   constructor(private readonly supabase: SupabaseService) {}
 
@@ -38,6 +44,7 @@ export class ContactService {
   private async save(msg: ContactMessage) {
     const db = this.supabase.client;
     if (!db) return false;
+    if (!this.saveLimit.take()) throw new Error("hourly cap on saved messages reached");
     const { error } = await db.from("contact_messages").insert(msg);
     if (error) throw new Error(error.message);
     return true;
@@ -47,6 +54,10 @@ export class ContactService {
   private async email({ name, email, message }: ContactMessage) {
     const to = env().contactNotifyEmail;
     if (!this.resend || !to) return false;
+    if (!this.emailLimit.take()) {
+      this.logger.warn("Hourly email cap reached — message saved but not emailed");
+      return false;
+    }
     const { error } = await this.resend.emails.send({
       from: "Portfolio Contact <onboarding@resend.dev>",
       to,

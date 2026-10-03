@@ -2,6 +2,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import { SupabaseService } from "../supabase/supabase.service";
 import { env } from "../config/env";
 import { hmacHex } from "../common/security";
+import { RollingLimit } from "../common/rolling-limit";
 import type { VisitDto } from "./visit.dto";
 
 /**
@@ -25,6 +26,8 @@ const REFERRER_NAMES: [RegExp, string][] = [
   [/(^|\.)facebook\.com$/, "Facebook"],
 ];
 
+const MAX_VIEWS_PER_VISITOR_PER_DAY = 20;
+
 /** Today's date in Jakarta, e.g. "2026-09-29" — the day boundary for stats. */
 function jakartaDay(date = new Date()) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(date);
@@ -46,10 +49,15 @@ function referrerLabel(referer: string | undefined, host: string | undefined): s
 @Injectable()
 export class AnalyticsService {
   private readonly logger = new Logger(AnalyticsService.name);
+  // Caps so a scripted flood (e.g. a bot faking a browser user agent) can't
+  // fill the database: a handful of views per visitor per day is plenty for
+  // real people, plus an overall ceiling per minute.
+  private readonly globalLimit = new RollingLimit(600, 60_000);
+  private viewsToday = { day: "", perVisitor: new Map<string, number>() };
 
   constructor(private readonly supabase: SupabaseService) {}
 
-  /** Stores one visit; silently skips bots and reloads from the site itself. */
+  /** Stores one visit; silently skips bots, reloads from the site itself, and floods. */
   async record(v: VisitDto) {
     const secret = env().adminSessionSecret;
     const db = this.supabase.client;
@@ -59,9 +67,15 @@ export class AnalyticsService {
     if (referrer === undefined) return;
 
     const day = jakartaDay();
+    const visitor = hmacHex(secret, `visit|${day}|${v.ip}|${v.ua}`).slice(0, 32);
+    if (this.viewsToday.day !== day) this.viewsToday = { day, perVisitor: new Map() };
+    const seen = this.viewsToday.perVisitor.get(visitor) ?? 0;
+    if (seen >= MAX_VIEWS_PER_VISITOR_PER_DAY || !this.globalLimit.take()) return;
+    this.viewsToday.perVisitor.set(visitor, seen + 1);
+
     const { error } = await db.from("page_views").insert({
       day,
-      visitor: hmacHex(secret, `visit|${day}|${v.ip}|${v.ua}`).slice(0, 32),
+      visitor,
       referrer,
       country: v.country ?? null,
       device: /Mobi|Android|iPhone|iPad/i.test(v.ua) ? "mobile" : "desktop",

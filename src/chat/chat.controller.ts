@@ -3,6 +3,8 @@ import {
   BadRequestException,
   Body,
   Controller,
+  HttpException,
+  HttpStatus,
   Logger,
   Post,
   Res,
@@ -13,6 +15,7 @@ import { Throttle } from "@nestjs/throttler";
 import type { Response } from "express";
 import { env } from "../config/env";
 import { OriginGuard } from "../common/origin.guard";
+import { RollingLimit } from "../common/rolling-limit";
 import { ContentService } from "../content/content.service";
 import { buildSystemPrompt } from "./assistant-knowledge";
 import { ChatDto } from "./chat.dto";
@@ -27,6 +30,9 @@ import { drainSse, raceModels } from "./gemini";
 @UseGuards(OriginGuard)
 export class ChatController {
   private readonly logger = new Logger(ChatController.name);
+  // Across all visitors: keeps a burst from many IPs from draining the free
+  // Gemini quota for everyone (the per-IP throttle below handles single users).
+  private readonly globalLimit = new RollingLimit(30, 60_000);
 
   constructor(private readonly content: ContentService) {}
 
@@ -35,6 +41,10 @@ export class ChatController {
   async chat(@Body() dto: ChatDto, @Res() res: Response) {
     const apiKey = env().geminiApiKey;
     if (!apiKey) throw new ServiceUnavailableException("The assistant isn't configured yet.");
+    if (!this.globalLimit.take()) {
+      this.logger.warn("Global chat limit reached");
+      throw new HttpException("Tinn is busy right now — please try again in a minute.", HttpStatus.TOO_MANY_REQUESTS);
+    }
 
     // Gemini expects the conversation to open with the visitor and alternate
     // turns, so drop leading model turns and fold same-role neighbours together.
