@@ -17,6 +17,7 @@ import { env } from "../config/env";
 import { OriginGuard } from "../common/origin.guard";
 import { RollingLimit } from "../common/rolling-limit";
 import { ContentService } from "../content/content.service";
+import { UsageService } from "../usage/usage.service";
 import { buildSystemPrompt } from "./assistant-knowledge";
 import { ChatDto } from "./chat.dto";
 import { drainSse, raceModels } from "./gemini";
@@ -34,7 +35,10 @@ export class ChatController {
   // Gemini quota for everyone (the per-IP throttle below handles single users).
   private readonly globalLimit = new RollingLimit(30, 60_000);
 
-  constructor(private readonly content: ContentService) {}
+  constructor(
+    private readonly content: ContentService,
+    private readonly usage: UsageService
+  ) {}
 
   @Post()
   @Throttle({ default: { limit: 25, ttl: 5 * 60_000 } })
@@ -70,9 +74,14 @@ export class ChatController {
 
     const open = await raceModels(apiKey, payload);
     if (!open) {
+      this.usage.bump("chat_failed");
       this.logger.error("No model answered; the visitor saw the fallback message");
       throw new BadGatewayException("The assistant is unavailable right now. Please try again.");
     }
+
+    this.usage.bump("chat_message");
+    // The visitor's first message opens a conversation.
+    if (contents.filter((c) => c.role === "user").length === 1) this.usage.bump("chat_conversation");
 
     // The widget shows plain text, so Markdown emphasis the model slips in
     // anyway would appear as literal asterisks; nothing Tinn says needs them.

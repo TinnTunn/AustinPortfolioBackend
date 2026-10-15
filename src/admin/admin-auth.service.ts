@@ -92,19 +92,21 @@ export class AdminAuthService {
   /**
    * Emails a Supabase recovery link — but only to ADMIN_EMAIL, and the caller
    * always gets the same answer, so it can't be used to discover the address.
+   * Returns whether an email actually went out (for the activity log only).
    */
-  async sendRecovery(email: string) {
+  async sendRecovery(email: string): Promise<boolean> {
     const { adminEmail, frontendUrl } = env();
-    if (!this.configured() || !frontendUrl || email.trim().toLowerCase() !== adminEmail) return;
+    if (!this.configured() || !frontendUrl || email.trim().toLowerCase() !== adminEmail) return false;
     if (Date.now() - this.lastRecoveryAt < RECOVERY_COOLDOWN_MS) {
       this.logger.warn("Recovery email skipped: one was sent less than 10 minutes ago");
-      return;
+      return false;
     }
     this.lastRecoveryAt = Date.now();
     const { error } = await this.supabase.client!.auth.resetPasswordForEmail(adminEmail, {
       redirectTo: `${frontendUrl}/admin/reset-password`,
     });
     if (error) this.logger.error(`Recovery email failed: ${error.message}`);
+    return !error;
   }
 
   /**

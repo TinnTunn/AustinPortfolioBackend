@@ -4,6 +4,7 @@ import {
   Get,
   NotFoundException,
   Put,
+  Req,
   Res,
   UploadedFile,
   UseGuards,
@@ -11,17 +12,21 @@ import {
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { Throttle } from "@nestjs/throttler";
-import type { Response } from "express";
+import type { Request, Response } from "express";
 import { memoryStorage } from "multer";
 import { OriginGuard } from "../common/origin.guard";
 import { AdminGuard } from "../admin/admin.guard";
+import { ActivityService } from "../activity/activity.service";
 import { CV_MAX_BYTES, CvService } from "./cv.service";
 
 const PDF_MAGIC = Buffer.from("%PDF-");
 
 @Controller()
 export class CvController {
-  constructor(private readonly cv: CvService) {}
+  constructor(
+    private readonly cv: CvService,
+    private readonly activity: ActivityService
+  ) {}
 
   /** Public download. The frontend serves this at /Austin_Yang_CV.pdf. */
   @Get("cv")
@@ -59,10 +64,12 @@ export class CvController {
       limits: { fileSize: CV_MAX_BYTES, files: 1, fields: 0, parts: 1 },
     })
   )
-  async replace(@UploadedFile() file: Express.Multer.File | undefined) {
+  async replace(@UploadedFile() file: Express.Multer.File | undefined, @Req() req: Request) {
     if (!file) throw new BadRequestException("Choose a PDF file to upload.");
     const looksLikePdf = file.mimetype === "application/pdf" && file.buffer.subarray(0, PDF_MAGIC.length).equals(PDF_MAGIC);
     if (!looksLikePdf) throw new BadRequestException("That file isn't a PDF.");
-    return { current: await this.cv.replace(file.buffer) };
+    const current = await this.cv.replace(file.buffer);
+    this.activity.log("cv.replace", `Replaced the CV (${Math.max(1, Math.round(file.size / 1024))} KB)`, req);
+    return { current };
   }
 }

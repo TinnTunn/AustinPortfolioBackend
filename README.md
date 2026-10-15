@@ -6,13 +6,18 @@ here, and every secret (Supabase, Resend, Gemini) stays on this server.
 
 | Area | Endpoints |
 |---|---|
-| Public content | `GET /content` — published Experience + Projects (EN + ID) |
+| Public content | `GET /content` — published Experience + Projects (EN + ID) and edited site text |
 | Contact form | `POST /contact` — saved to Supabase **and** emailed via Resend |
 | Tinn (AI assistant) | `POST /chat` — streams a grounded Gemini reply |
-| Visitor stats | `POST /visits` (frontend server only) · `GET /admin/stats` |
+| Visitor stats | `POST /visits` (frontend server only) · `GET /admin/stats` (visits, inbox, CV/Tinn usage) |
+| Usage counters | `POST /usage` (frontend server only, CV downloads) — Tinn is counted in `/chat` |
 | Admin auth | `POST /admin/login` · `POST /admin/logout` · `GET /admin/session` |
 | Admin password | `POST /admin/password` (change, signed in) · `POST /admin/password/forgot` · `POST /admin/password/reset` |
 | Admin CMS | `GET/POST /admin/{experiences,projects}` · `GET/PUT/DELETE …/:id` · `PATCH …/:id/published` · `POST …/:id/move` |
+| Project screenshots | `PUT/DELETE /admin/projects/:id/image` |
+| Site text | `GET /admin/sections` · `PUT /admin/sections/{hero,about,skills,goals}` · `DELETE /admin/sections/:key` (back to built-in) |
+| Inbox | `GET /admin/messages` · `GET /admin/messages/summary` · `PATCH …/:id/read` · `DELETE …/:id` |
+| Activity log | `GET /admin/activity` |
 | CV | `GET /cv` (public download) · `GET/PUT /admin/cv` (replace the PDF) |
 | Health | `GET /health` |
 
@@ -32,7 +37,10 @@ npm run build && npm start
 
 In the Supabase dashboard → **SQL Editor**, run these in order:
 
-1. [supabase/schema.sql](supabase/schema.sql) — tables, indexes, RLS, and the stats function
+1. [supabase/schema.sql](supabase/schema.sql) — tables, indexes, RLS, and the stats functions. **Re-run it
+   after pulling changes** (it's safe to run again) — e.g. the inbox, site text, screenshots, usage
+   counters, and activity log need it. Run it *before* deploying the API that uses them; until then
+   the site keeps working without those features.
 2. [supabase/seed-content.sql](supabase/seed-content.sql) — fills Experience and Projects with the current content (only into empty tables)
 
 For password recovery emails, set **Authentication → URL Configuration**:
@@ -79,6 +87,23 @@ reason to let strangers create accounts.
   key can't read or write anything; the stats and reorder functions are
   executable by the service role only. Reordering rewrites the whole list in
   one statement, so it's atomic.
+- **Project screenshots**: admin-only, one file, 3 MB max; the bytes must be
+  PNG, JPG, or WebP (checked by their signature — SVG and anything else is
+  refused). Stored in a public bucket (`project-images`, created on first
+  upload, image types and 3 MB enforced by Storage too) under a random name the
+  API generates; the database only accepts names of that shape. Replaced and
+  deleted projects' files are removed.
+- **Site text**: one strict DTO per section (lengths, list sizes, nested objects
+  checked, unknown fields rejected). The frontend still falls back to its
+  built-in text for anything missing or malformed.
+- **Inbox**: messages are written by visitors, so they're returned as data and
+  rendered as plain text; reply links are only built from plain addresses.
+- **Activity log**: sign-ins, failed attempts, password changes/resets, and
+  every admin change, with IP and browser — capped at 300 entries/hour so
+  failed-login spam can't grow it, and pruned after 180 days.
+- **Usage counters**: CV downloads (once per visitor per day, bots skipped) and
+  Tinn conversations/replies/failures — daily totals only, nothing about who.
+  Only the frontend server can report a download (`INTERNAL_API_KEY`).
 - **CV uploads**: admin-only, one file, 5 MB max, and the bytes must start with
   `%PDF-` (the file name and declared type aren't trusted). Stored under a fixed
   name in a private Storage bucket (`cv`, created automatically on first

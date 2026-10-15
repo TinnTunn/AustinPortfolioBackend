@@ -97,6 +97,7 @@ export const FALLBACK_CONTENT: ContentRows = {
       contribution_id: "Perumusan masalah, ideasi produk, penyusunan PRD, dan implementasi frontend bersama tim.",
       lessons_en: "How to turn a raw problem into a structured product idea, and the fundamentals of building with HTML, CSS, and JavaScript.",
       lessons_id: "Cara mengubah masalah mentah menjadi ide produk yang terstruktur, serta dasar-dasar membangun dengan HTML, CSS, dan JavaScript.",
+      image_path: null,
     },
     {
       id: "fallback-pr-2",
@@ -119,6 +120,7 @@ export const FALLBACK_CONTENT: ContentRows = {
       contribution_id: "Pengembangan end-to-end — API, database, pembayaran, deployment di Railway dan Vercel, serta aplikasi Flutter dengan API yang sama.",
       lessons_en: "How to handle money and sensitive files responsibly, and how one well-designed API can serve both web and mobile.",
       lessons_id: "Cara menangani uang dan file sensitif secara bertanggung jawab, dan bagaimana satu API yang dirancang baik bisa melayani web sekaligus mobile.",
+      image_path: null,
     },
     {
       id: "fallback-pr-3",
@@ -141,6 +143,7 @@ export const FALLBACK_CONTENT: ContentRows = {
       contribution_id: "Arsitektur, pipeline data dan validasi input, integrasi Prophet dengan simulasi skenario, code review, dan deployment.",
       lessons_en: "How to turn a working model into a complete app that translates data into real business decisions.",
       lessons_id: "Cara mengubah model yang berjalan menjadi aplikasi utuh yang menerjemahkan data menjadi keputusan bisnis nyata.",
+      image_path: null,
     },
     {
       id: "fallback-pr-4",
@@ -163,6 +166,8 @@ export const FALLBACK_CONTENT: ContentRows = {
       contribution_id: "Implementasi desain, frontend dan animasi, API NestJS dengan panel admin yang aman, asisten AI, serta lokalisasi Inggris/Indonesia.",
       lessons_en: "How to split a product into a frontend and an API cleanly, how to secure an admin panel end to end, and how much restraint good motion design takes.",
       lessons_id: "Cara memisahkan produk menjadi frontend dan API dengan rapi, cara mengamankan panel admin dari ujung ke ujung, dan betapa pentingnya menahan diri dalam desain animasi.",
+      image_path: null,
     },
   ],
+  sections: {},
 };

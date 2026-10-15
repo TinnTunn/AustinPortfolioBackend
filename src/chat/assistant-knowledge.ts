@@ -1,10 +1,11 @@
-import type { ContentRows, ExperienceRow, ProjectRow } from "../content/content.types";
+import type { ContentRows, ExperienceRow, ProjectRow, SiteSections } from "../content/content.types";
 
 /**
  * Knowledge base + system instruction for Tinn, the portfolio AI assistant.
- * Tinn answers ONLY from these facts (grounding). Experience and Projects are
- * generated from the same content the site shows (edited in /admin); the rest
- * is written here. Edit this file to update everything else Tinn knows.
+ * Tinn answers ONLY from these facts (grounding). Experience and Projects —
+ * and any Hero/About/Skills/Goals text changed in /admin — are generated from
+ * the same content the site shows; the rest is written here. Edit this file
+ * to update everything else Tinn knows.
  */
 
 const sentence = (text: string) => (/[.!?]$/.test(text.trim()) ? text.trim() : `${text.trim()}.`);
@@ -34,7 +35,40 @@ function describeProject(p: ProjectRow, i: number) {
   return parts.filter(Boolean).join(" ");
 }
 
-export function buildSystemPrompt({ experiences, projects }: ContentRows) {
+const strings = (value: unknown) => (Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : []);
+const text = (value: unknown) => (typeof value === "string" ? value : "");
+const objects = (value: unknown) =>
+  (Array.isArray(value) ? value.filter((v): v is Record<string, unknown> => Boolean(v) && typeof v === "object") : []);
+
+/** The English site text Austin edited in /admin (validated by the API when saved). */
+function describeSections(sections: SiteSections) {
+  const lines: string[] = [];
+  const { hero, about, skills, goals } = sections;
+  if (hero) {
+    lines.push(`Headline: "${text(hero.title_en)}"`, `Intro: ${text(hero.lede_en)}`);
+    lines.push(`Roles he's interested in: ${strings(hero.roles_en).join(", ")}`);
+  }
+  if (about) {
+    lines.push(`About: ${strings(about.paras_en).join(" ")}`);
+    const stats = objects(about.stats).map((s) => `${text(s.value)} ${text(s.label_en)}`);
+    if (stats.length) lines.push(`Numbers on the site: ${stats.join(", ")}`);
+  }
+  if (skills) {
+    lines.push(`Programming languages: ${strings(skills.languages).join(", ")}`);
+    for (const area of ["frontend", "backend", "devops"] as const) {
+      const groups = objects(skills[area]).map((g) => `${text(g.name)}: ${strings(g.items).join(", ")}`);
+      lines.push(`${area}: ${groups.join("; ")}`);
+    }
+  }
+  if (goals) {
+    lines.push(`Future goals: ${objects(goals.items).map((g) => `${text(g.title_en)} — ${text(g.desc_en)}`).join("; ")}`);
+  }
+  return lines.length
+    ? `\n\nLATEST SITE TEXT (edited by Austin — newer than the KNOWLEDGE BASE; where they differ, this wins)\n${lines.join("\n")}`
+    : "";
+}
+
+export function buildSystemPrompt({ experiences, projects, sections }: ContentRows) {
   const experienceText = experiences.length
     ? experiences.map(describeExperience).join("\n")
     : "No client work is listed right now.";
@@ -97,5 +131,5 @@ Contact
 - Email: austiny4ng@gmail.com
 - GitHub: https://github.com/tinntunn
 - LinkedIn: https://www.linkedin.com/in/austin-yang22
-- CV: a PDF, downloadable with the "Download CV" button in the hero section, from the contact section, or directly at https://www.austinyang.tech/Austin_Yang_CV.pdf`;
+- CV: a PDF, downloadable with the "Download CV" button in the hero section, from the contact section, or directly at https://www.austinyang.tech/Austin_Yang_CV.pdf${describeSections(sections ?? {})}`;
 }

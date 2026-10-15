@@ -4,6 +4,8 @@ import { InternalKeyGuard } from "../common/internal-key.guard";
 import { OriginGuard } from "../common/origin.guard";
 import { AdminGuard } from "../admin/admin.guard";
 import { AdminContentService } from "../admin/admin-content.service";
+import { AdminInboxService } from "../admin/admin-inbox.controller";
+import { UsageService } from "../usage/usage.service";
 import { AnalyticsService } from "./analytics.service";
 import { VisitDto } from "./visit.dto";
 
@@ -11,7 +13,9 @@ import { VisitDto } from "./visit.dto";
 export class AnalyticsController {
   constructor(
     private readonly analytics: AnalyticsService,
-    private readonly content: AdminContentService
+    private readonly content: AdminContentService,
+    private readonly inbox: AdminInboxService,
+    private readonly usage: UsageService
   ) {}
 
   /** Server-to-server from the frontend; the key stops anyone inflating the numbers. */
@@ -26,7 +30,13 @@ export class AnalyticsController {
   @Get("admin/stats")
   @UseGuards(OriginGuard, AdminGuard)
   async stats() {
-    const [visits, counts] = await Promise.all([this.analytics.stats(), this.content.counts().catch(() => null)]);
-    return { visits, counts };
+    // Each part is optional: one failing (e.g. a table not created yet) leaves the rest of the dashboard working.
+    const [visits, counts, inbox, usage] = await Promise.all([
+      this.analytics.stats(),
+      this.content.counts().catch(() => null),
+      this.inbox.summary().catch(() => null),
+      this.usage.stats(),
+    ]);
+    return { visits, counts, inbox, usage };
   }
 }

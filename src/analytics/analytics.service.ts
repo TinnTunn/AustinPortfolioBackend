@@ -3,6 +3,7 @@ import { SupabaseService } from "../supabase/supabase.service";
 import { env } from "../config/env";
 import { hmacHex } from "../common/security";
 import { RollingLimit } from "../common/rolling-limit";
+import { BOT_UA, jakartaDay } from "../common/visitors";
 import type { VisitDto } from "./visit.dto";
 
 /**
@@ -11,9 +12,6 @@ import type { VisitDto } from "./visit.dto";
  * changes daily and can't be reversed — enough to count unique visitors per
  * day, not enough to follow anyone around.
  */
-
-const BOT_UA =
-  /bot|crawl|spider|slurp|preview|fetch|scan|monitor|uptime|pingdom|lighthouse|headless|facebookexternalhit|embedly|whatsapp|telegram|discord|slack|curl|wget|python|node|axios|go-http|java\/|okhttp|vercel/i;
 
 const REFERRER_NAMES: [RegExp, string][] = [
   [/(^|\.)google\./, "Google"],
@@ -27,11 +25,6 @@ const REFERRER_NAMES: [RegExp, string][] = [
 ];
 
 const MAX_VIEWS_PER_VISITOR_PER_DAY = 20;
-
-/** Today's date in Jakarta, e.g. "2026-09-29" — the day boundary for stats. */
-function jakartaDay(date = new Date()) {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(date);
-}
 
 /** A readable source name, null for direct visits, undefined for our own pages (reloads). */
 function referrerLabel(referer: string | undefined, host: string | undefined): string | null | undefined {

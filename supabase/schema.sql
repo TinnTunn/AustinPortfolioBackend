@@ -15,6 +15,9 @@ create table if not exists public.contact_messages (
   created_at  timestamptz not null default now()
 );
 alter table public.contact_messages enable row level security;
+-- Inbox in /admin: null = unread.
+alter table public.contact_messages add column if not exists read_at timestamptz;
+create index if not exists contact_messages_created_idx on public.contact_messages (created_at desc);
 
 -- ------------------------------------------------------------ content (admin CMS)
 -- *_id columns hold the Indonesian text; empty means "show the English".
@@ -65,6 +68,20 @@ create table if not exists public.projects (
 );
 alter table public.projects enable row level security;
 create index if not exists projects_order_idx on public.projects (sort_order);
+-- Optional screenshot, stored in the public `project-images` bucket under a
+-- name the API generates (<project id>/<random>.<ext>) — never user-chosen.
+alter table public.projects add column if not exists image_path text
+  check (image_path is null or image_path ~ '^[0-9a-f-]{36}/[0-9a-f]{32}\.(png|jpg|webp)$');
+
+-- Editable text for the Hero, About, Skills, and Goals sections. One JSON
+-- document per section, validated by the API; a missing row means the site
+-- shows its built-in text.
+create table if not exists public.site_sections (
+  key         text primary key check (key in ('hero', 'about', 'skills', 'goals')),
+  data        jsonb not null check (jsonb_typeof(data) = 'object' and pg_column_size(data) < 32768),
+  updated_at  timestamptz not null default now()
+);
+alter table public.site_sections enable row level security;
 
 -- Reorders a whole list in ONE statement, so a move can never leave the list
 -- half-updated (e.g. two items sharing a position). `p_ids` is the full list
@@ -177,3 +194,40 @@ $$;
 -- one down to the service role only.
 revoke all on function public.admin_visit_stats(date, integer) from public, anon, authenticated;
 grant execute on function public.admin_visit_stats(date, integer) to service_role;
+
+-- ------------------------------------------------------------ usage counters
+-- One row per day and kind (CV downloads, Tinn conversations/messages/failures):
+-- counts only, nothing about who.
+create table if not exists public.usage_daily (
+  day    date not null,
+  kind   text not null check (kind in ('cv_download', 'chat_conversation', 'chat_message', 'chat_failed')),
+  count  integer not null default 0 check (count >= 0),
+  primary key (day, kind)
+);
+alter table public.usage_daily enable row level security;
+
+-- Atomic +1 (insert the day's row or bump it), so parallel requests never lose a count.
+create or replace function public.bump_usage(p_day date, p_kind text)
+returns void
+language sql
+set search_path = public
+as $$
+  insert into usage_daily (day, kind, count) values (p_day, p_kind, 1)
+  on conflict (day, kind) do update set count = usage_daily.count + 1;
+$$;
+revoke all on function public.bump_usage(date, text) from public, anon, authenticated;
+grant execute on function public.bump_usage(date, text) to service_role;
+
+-- ------------------------------------------------------------ admin activity log
+-- Sign-ins (and failed attempts), password changes, and every change made in
+-- /admin. Kept for 180 days by the API's keep-alive job.
+create table if not exists public.admin_activity (
+  id          bigint generated always as identity primary key,
+  created_at  timestamptz not null default now(),
+  action      text not null check (char_length(action) <= 40),
+  summary     text not null check (char_length(summary) <= 300),
+  ip          text check (char_length(ip) <= 64),
+  user_agent  text check (char_length(user_agent) <= 300)
+);
+alter table public.admin_activity enable row level security;
+create index if not exists admin_activity_created_idx on public.admin_activity (created_at desc);

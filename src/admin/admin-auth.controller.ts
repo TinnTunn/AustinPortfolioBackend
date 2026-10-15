@@ -18,6 +18,7 @@ import type { Request, Response } from "express";
 import { env } from "../config/env";
 import { OriginGuard } from "../common/origin.guard";
 import { clientIp } from "../common/security";
+import { ActivityService } from "../activity/activity.service";
 import { AdminAuthService } from "./admin-auth.service";
 import { AdminGuard, type AdminRequest } from "./admin.guard";
 import { ChangePasswordDto, ForgotPasswordDto, LoginDto, ResetPasswordDto } from "./admin.dto";
@@ -37,7 +38,10 @@ function cookieOptions() {
 @Controller("admin")
 @UseGuards(OriginGuard)
 export class AdminAuthController {
-  constructor(private readonly auth: AdminAuthService) {}
+  constructor(
+    private readonly auth: AdminAuthService,
+    private readonly activity: ActivityService
+  ) {}
 
   @Post("login")
   @HttpCode(200)
@@ -50,8 +54,11 @@ export class AdminAuthController {
         throw new ServiceUnavailableException("Login is unavailable — the database isn't ready (run supabase/schema.sql).");
       }
       if (result.reason === "locked") {
+        this.activity.log("login.locked", "Sign-in blocked: too many failed attempts from this IP", req);
         throw new HttpException("Too many attempts. Please wait 15 minutes and try again.", HttpStatus.TOO_MANY_REQUESTS);
       }
+      // The typed email isn't logged: it could be a password pasted into the wrong field.
+      this.activity.log("login.failed", "Failed sign-in attempt", req);
       await wait(400); // slows scripted guessing; same message for every wrong email/password
       throw new UnauthorizedException("Email or password is incorrect.");
     }
@@ -59,6 +66,7 @@ export class AdminAuthController {
       ...cookieOptions(),
       maxAge: SESSION_TTL_SECONDS * 1000,
     });
+    this.activity.log("login", "Signed in", req);
     return { email: result.user.email };
   }
 
@@ -84,6 +92,7 @@ export class AdminAuthController {
     const result = await this.auth.changePassword(admin, dto.currentPassword, dto.newPassword, clientIp(req));
     if (!result.ok) {
       if (result.reason === "invalid") {
+        this.activity.log("password.failed", "Password change refused: wrong current password", req);
         await wait(400);
         throw new BadRequestException({ message: "Your current password is incorrect.", fieldErrors: { currentPassword: "Incorrect password." } });
       }
@@ -96,14 +105,15 @@ export class AdminAuthController {
       ...cookieOptions(),
       maxAge: SESSION_TTL_SECONDS * 1000,
     });
+    this.activity.log("password.changed", "Changed the password (other devices signed out)", req);
   }
 
   /** Always the same answer, whatever the email — no way to probe for the admin address. */
   @Post("password/forgot")
   @HttpCode(200)
   @Throttle({ default: { limit: 3, ttl: 15 * 60_000 } })
-  async forgotPassword(@Body() dto: ForgotPasswordDto) {
-    await this.auth.sendRecovery(dto.email);
+  async forgotPassword(@Body() dto: ForgotPasswordDto, @Req() req: Request) {
+    if (await this.auth.sendRecovery(dto.email)) this.activity.log("password.recovery", "Password reset email sent", req);
     return { ok: true };
   }
 
@@ -111,8 +121,9 @@ export class AdminAuthController {
   @Post("password/reset")
   @HttpCode(204)
   @Throttle({ default: { limit: 5, ttl: 15 * 60_000 } })
-  async resetPassword(@Body() dto: ResetPasswordDto) {
+  async resetPassword(@Body() dto: ResetPasswordDto, @Req() req: Request) {
     const result = await this.auth.resetWithRecovery(dto.accessToken, dto.newPassword);
+    if (result.ok) this.activity.log("password.reset", "Set a new password from the reset email (all devices signed out)", req);
     if (!result.ok) {
       if (result.reason === "invalid") {
         throw new BadRequestException("This reset link is invalid or has expired. Request a new one.");

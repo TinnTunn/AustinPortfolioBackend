@@ -1,6 +1,7 @@
 import { Controller, Get, Injectable, Logger, Module, type OnApplicationBootstrap, type OnApplicationShutdown } from "@nestjs/common";
 import { SkipThrottle } from "@nestjs/throttler";
 import { SupabaseService } from "../supabase/supabase.service";
+import { KEEP_ACTIVITY_DAYS } from "../activity/activity.service";
 
 const PING_EVERY_MS = 12 * 60 * 60_000;
 const KEEP_VISITS_DAYS = 400; // a little over a year of stats
@@ -9,7 +10,8 @@ const KEEP_VISITS_DAYS = 400; // a little over a year of stats
  * Free-tier Supabase projects pause after about a week without traffic, which
  * breaks the admin panel and the contact archive. The API is always on, so it
  * simply makes one tiny read twice a day — and while it's there, drops visit
- * records older than about 13 months so the free 500 MB never fills up.
+ * records older than about 13 months and admin activity older than 6 months,
+ * so the free 500 MB never fills up.
  */
 @Injectable()
 class KeepAliveService implements OnApplicationBootstrap, OnApplicationShutdown {
@@ -37,6 +39,10 @@ class KeepAliveService implements OnApplicationBootstrap, OnApplicationShutdown 
     const cutoff = new Date(Date.now() - KEEP_VISITS_DAYS * 24 * 60 * 60_000).toISOString().slice(0, 10);
     const pruned = await db.from("page_views").delete().lt("day", cutoff);
     if (pruned.error) this.logger.warn(`Old visit cleanup failed: ${pruned.error.message}`);
+
+    const activityCutoff = new Date(Date.now() - KEEP_ACTIVITY_DAYS * 24 * 60 * 60_000).toISOString();
+    const prunedActivity = await db.from("admin_activity").delete().lt("created_at", activityCutoff);
+    if (prunedActivity.error) this.logger.warn(`Old activity cleanup failed: ${prunedActivity.error.message}`);
   }
 }
 

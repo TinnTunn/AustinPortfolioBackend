@@ -1,4 +1,4 @@
-/** Rows of the `experiences` and `projects` tables (see supabase/schema.sql). */
+/** Rows of the content tables (see supabase/schema.sql). */
 
 export interface ExperienceRow {
   id: string;
@@ -38,11 +38,21 @@ export interface ProjectRow {
   contribution_id: string;
   lessons_en: string;
   lessons_id: string;
+  /** Object name in the `project-images` bucket; the API adds `image_url` when serving. */
+  image_path: string | null;
+  image_url?: string | null;
 }
+
+export const SECTION_KEYS = ["hero", "about", "skills", "goals"] as const;
+export type SectionKey = (typeof SECTION_KEYS)[number];
+
+/** Admin-edited text per section (validated JSON); a missing key means "use the site's built-in text". */
+export type SiteSections = Partial<Record<SectionKey, Record<string, unknown>>>;
 
 export interface ContentRows {
   experiences: ExperienceRow[];
   projects: ProjectRow[];
+  sections: SiteSections;
 }
 
 export type ContentTable = "experiences" | "projects";
@@ -51,5 +61,5 @@ export const COLUMNS: Record<ContentTable, string> = {
   experiences:
     "id, sort_order, published, org, href, tags, role_en, role_id, period_en, period_id, context_en, context_id, points_en, points_id",
   projects:
-    "id, sort_order, published, name, href, stack, role_en, role_id, status_en, status_id, summary_en, summary_id, problem_en, problem_id, solution_en, solution_id, contribution_en, contribution_id, lessons_en, lessons_id",
+    "id, sort_order, published, name, href, stack, role_en, role_id, status_en, status_id, summary_en, summary_id, problem_en, problem_id, solution_en, solution_id, contribution_en, contribution_id, lessons_en, lessons_id, image_path",
 };

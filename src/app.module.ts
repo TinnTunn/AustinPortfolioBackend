@@ -12,6 +12,8 @@ import { CvService } from "./cv/cv.service";
 import { HealthModule } from "./health/health";
 import { FrontendRevalidatorModule } from "./common/frontend-revalidator";
 import { AdminSessionsModule } from "./admin/admin-sessions.service";
+import { ActivityModule } from "./activity/activity.service";
+import { UsageModule } from "./usage/usage.service";
 
 @Module({
   imports: [
@@ -21,6 +23,8 @@ import { AdminSessionsModule } from "./admin/admin-sessions.service";
     SupabaseModule,
     FrontendRevalidatorModule,
     AdminSessionsModule,
+    ActivityModule,
+    UsageModule,
     ContentModule,
     AdminModule,
     HealthModule,
