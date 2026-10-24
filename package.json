@@ -37,5 +37,8 @@
     "@types/node": "^22.20.4",
     "@types/ws": "^8.18.2",
     "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "multer": "$multer"
   }
 }
